@@ -9,7 +9,7 @@ name = "computer_service"
 path = "src/lib.rs"
 
 [[bin]]
-name = "computer-service"
+name = "pacs"
 path = "src/main.rs"
 
 [dependencies]

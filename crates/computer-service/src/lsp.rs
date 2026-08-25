@@ -337,7 +337,7 @@ async fn client_for(ext: &str, root: &str) -> Option<Arc<LspClient>> {
     }
     let started = start(&spec, root).await.ok();
     if started.is_none() {
-        eprintln!("computer-service: LSP server '{}' unavailable", spec.cmd);
+        eprintln!("pacs: LSP server '{}' unavailable", spec.cmd);
     }
     map.insert(key, started.clone());
     started
