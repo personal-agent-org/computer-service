@@ -18,11 +18,12 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Verify ownership using the device flow and obtain a device-bound service token.
+    ///
+    /// The server URL is all it needs: this machine registers itself, or renews the device it
+    /// is already enrolled as (personal-agent-org/personal-agent#122).
     Enroll {
         #[arg(long)]
         server: String,
-        #[arg(long)]
-        device: String,
         #[arg(long, default_value = ".")]
         workspace: String,
     },
@@ -43,11 +44,7 @@ enum Command {
 async fn main() -> Result<()> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     match Cli::parse().cmd {
-        Command::Enroll {
-            server,
-            device,
-            workspace,
-        } => computer_service::enroll(server, device, workspace).await,
+        Command::Enroll { server, workspace } => computer_service::enroll(server, workspace).await,
         Command::Run => computer_service::run().await,
         Command::Tools => computer_service::tools().await,
         Command::CredentialHelper { operation } => {

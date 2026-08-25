@@ -1,6 +1,7 @@
 [package]
 name = "computer-service"
 version.workspace = true
+license.workspace = true
 edition.workspace = true
 description = "Personal Agent Computer Service - expose computer tools and capabilities"
 
