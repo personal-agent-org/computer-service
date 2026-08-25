@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(
-    name = "computer-service",
+    name = "pacs",
     version,
     about = "Expose this computer's capabilities to Personal Agent"
 )]

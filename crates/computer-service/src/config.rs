@@ -1,7 +1,8 @@
-//! Computer Service config — stored at
-//! ~/.config/personal-agent-computer-service/config.toml (mode 0600 on Unix).
+//! Computer Service config. Per-user enrollment is stored at
+//! `~/.config/personal-agent/computer-service/config.toml` (mode 0600 on Unix). If that file is
+//! absent, Unix services may load `/etc/personal-agent/computer-service/config.toml`.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
@@ -102,8 +103,35 @@ impl Config {
 pub fn config_path() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("personal-agent-computer-service")
+        .join("personal-agent")
+        .join("computer-service")
         .join("config.toml")
+}
+
+#[cfg(unix)]
+pub fn system_config_path() -> Option<PathBuf> {
+    Some(PathBuf::from(
+        "/etc/personal-agent/computer-service/config.toml",
+    ))
+}
+
+#[cfg(not(unix))]
+pub fn system_config_path() -> Option<PathBuf> {
+    None
+}
+
+fn select_config_path(user: &Path, system: Option<&Path>) -> Option<PathBuf> {
+    if user.is_file() {
+        Some(user.to_path_buf())
+    } else {
+        system.filter(|path| path.is_file()).map(Path::to_path_buf)
+    }
+}
+
+pub fn active_config_path() -> Option<PathBuf> {
+    let user = config_path();
+    let system = system_config_path();
+    select_config_path(&user, system.as_deref())
 }
 
 pub fn save(cfg: &Config) -> Result<()> {
@@ -121,12 +149,50 @@ pub fn save(cfg: &Config) -> Result<()> {
 }
 
 pub fn load() -> Result<Config> {
-    let path = config_path();
-    if !path.exists() {
-        bail!(
-            "not enrolled — run `computer-service enroll` first ({})",
-            path.display()
+    let user = config_path();
+    let system = system_config_path();
+    let Some(path) = active_config_path() else {
+        let checked = system.map_or_else(
+            || user.display().to_string(),
+            |system| format!("{} or {}", user.display(), system.display()),
+        );
+        bail!("not enrolled — run `pacs enroll` first (checked {checked})");
+    };
+    Ok(toml::from_str(&std::fs::read_to_string(&path)?)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::select_config_path;
+
+    #[test]
+    fn user_config_has_priority_over_system_config() {
+        let tmp = tempfile::tempdir().unwrap();
+        let user = tmp.path().join("user.toml");
+        let system = tmp.path().join("system.toml");
+        std::fs::write(&user, "user").unwrap();
+        std::fs::write(&system, "system").unwrap();
+        assert_eq!(select_config_path(&user, Some(&system)), Some(user));
+    }
+
+    #[test]
+    fn system_config_is_used_only_when_user_config_is_absent() {
+        let tmp = tempfile::tempdir().unwrap();
+        let user = tmp.path().join("user.toml");
+        let system = tmp.path().join("system.toml");
+        std::fs::write(&system, "system").unwrap();
+        assert_eq!(select_config_path(&user, Some(&system)), Some(system));
+    }
+
+    #[test]
+    fn missing_configs_do_not_resolve() {
+        let tmp = tempfile::tempdir().unwrap();
+        assert_eq!(
+            select_config_path(
+                &tmp.path().join("user.toml"),
+                Some(&tmp.path().join("system.toml"))
+            ),
+            None
         );
     }
-    Ok(toml::from_str(&std::fs::read_to_string(&path)?)?)
 }

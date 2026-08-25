@@ -69,10 +69,10 @@ pub async fn run(cfg: Config) -> Result<()> {
     crate::sandbox::set_enabled(cfg.sandbox);
     if cfg.sandbox {
         if crate::sandbox::supported() {
-            eprintln!("computer-service: command sandbox ON (landlock write-confinement)");
+            eprintln!("pacs: command sandbox ON (landlock write-confinement)");
         } else {
             eprintln!(
-                "computer-service: sandbox requested but landlock is unavailable on \
+                "pacs: sandbox requested but landlock is unavailable on \
                  this kernel — commands run UNCONFINED (path-jail still applies)"
             );
         }
@@ -86,7 +86,7 @@ pub async fn run(cfg: Config) -> Result<()> {
     // Coding workspaces: the enrolled default OR a user-chosen folder under home (per chat).
     let coding = CodingWorkspaces::new(ws, home.as_ref().map(HomeIndex::root_path));
     eprintln!(
-        "computer-service: workspace={} home={} server={}",
+        "pacs: workspace={} home={} server={}",
         coding.default_root_display(),
         home.as_ref()
             .map(HomeIndex::root_display)

@@ -7,7 +7,7 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
       bash ca-certificates curl git openssh-client ripgrep \
     && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /src/target/release/computer-service /usr/local/bin/computer-service
+COPY --from=builder /src/target/release/pacs /usr/local/bin/pacs
 WORKDIR /workspace
-ENTRYPOINT ["computer-service"]
+ENTRYPOINT ["pacs"]
 CMD ["run"]

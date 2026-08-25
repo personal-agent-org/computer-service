@@ -45,8 +45,8 @@ pub fn connected(device: &str, config: &str, workspace: &str) -> String {
 
 pub fn start_hint() -> &'static str {
     if english() {
-        "Start Computer Service with: computer-service run"
+        "Start Computer Service with: pacs run"
     } else {
-        "Computer Service starten mit: computer-service run"
+        "Computer Service starten mit: pacs run"
     }
 }

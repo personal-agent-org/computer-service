@@ -20,9 +20,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, asset: computer-service-linux-x64 }
-          - { os: macos-latest, target: aarch64-apple-darwin, asset: computer-service-macos-arm64 }
-          - { os: windows-latest, target: x86_64-pc-windows-msvc, asset: computer-service-windows-x64.exe }
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, asset: pacs-linux-x64 }
+          - { os: macos-latest, target: aarch64-apple-darwin, asset: pacs-macos-arm64 }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, asset: pacs-windows-x64.exe }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -33,7 +33,7 @@ jobs:
       - name: Stage binary
         shell: bash
         run: |
-          bin="target/${{ matrix.target }}/release/computer-service"
+          bin="target/${{ matrix.target }}/release/pacs"
           [ -f "$bin.exe" ] && bin="$bin.exe"
           cp "$bin" "${{ matrix.asset }}"
       - uses: actions/upload-artifact@v4
@@ -59,7 +59,7 @@ jobs:
           v="v$(date -u +%Y).$(date -u +%-m).${{ github.event.inputs.micro }}"
           git rev-parse "$v" >/dev/null 2>&1 || { git tag "$v" && git push origin "$v"; }
           gh release view "$v" >/dev/null 2>&1 || gh release create "$v" --title "$v" --generate-notes
-          gh release upload "$v" --clobber bins/computer-service-*
+          gh release upload "$v" --clobber bins/pacs-*
 
   image:
     needs: ci
