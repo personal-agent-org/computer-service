@@ -1,0 +1,78 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      micro:
+        description: "MICRO version within this month"
+        required: true
+        default: "0"
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  binaries:
+    needs: ci
+    strategy:
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, asset: computer-service-linux-x64 }
+          - { os: macos-latest, target: aarch64-apple-darwin, asset: computer-service-macos-arm64 }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, asset: computer-service-windows-x64.exe }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: cargo build --release --target ${{ matrix.target }} -p computer-service
+      - name: Stage binary
+        shell: bash
+        run: |
+          bin="target/${{ matrix.target }}/release/computer-service"
+          [ -f "$bin.exe" ] && bin="$bin.exe"
+          cp "$bin" "${{ matrix.asset }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+
+  release:
+    needs: binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          path: bins
+          merge-multiple: true
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="v$(date -u +%Y).$(date -u +%-m).${{ github.event.inputs.micro }}"
+          git rev-parse "$v" >/dev/null 2>&1 || { git tag "$v" && git push origin "$v"; }
+          gh release view "$v" >/dev/null 2>&1 || gh release create "$v" --title "$v" --generate-notes
+          gh release upload "$v" --clobber bins/computer-service-*
+
+  image:
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/personal-agent-org/personal-agent-sandbox:latest

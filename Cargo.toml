@@ -1,0 +1,12 @@
+[workspace]
+resolver = "2"
+members = ["crates/pa-oidc", "crates/computer-service"]
+
+[workspace.package]
+version = "2026.8.0"
+edition = "2021"
+
+[profile.release]
+strip = true
+lto = true
+opt-level = "z"
