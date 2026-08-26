@@ -27,11 +27,15 @@ pub fn authorization_failed(error: &str) -> String {
     }
 }
 
-pub fn enrollment_failed(status: reqwest::StatusCode) -> String {
-    if english() {
+pub fn enrollment_failed(status: reqwest::StatusCode, detail: Option<&str>) -> String {
+    let base = if english() {
         format!("Computer Service enrollment failed (HTTP {status})")
     } else {
         format!("Computer-Service-Registrierung fehlgeschlagen (HTTP {status})")
+    };
+    match detail.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(detail) => format!("{base}: {detail}"),
+        None => base,
     }
 }
 

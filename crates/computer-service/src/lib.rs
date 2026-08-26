@@ -16,6 +16,23 @@ use anyhow::Result;
 
 use config::Config;
 
+fn problem_detail(body: &str) -> Option<String> {
+    serde_json::from_str::<serde_json::Value>(body)
+        .ok()?
+        .get("detail")?
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.chars().take(500).collect())
+}
+
+async fn enrollment_error(response: reqwest::Response) -> String {
+    let status = response.status();
+    let body = response.text().await.unwrap_or_default();
+    let detail = problem_detail(&body);
+    i18n::enrollment_failed(status, detail.as_deref())
+}
+
 #[derive(serde::Deserialize)]
 struct Enrollment {
     token: String,
@@ -64,7 +81,7 @@ async fn register_this_machine(server: &str, user_access_token: &str) -> Result<
         .send()
         .await?;
     if !response.status().is_success() {
-        anyhow::bail!(i18n::enrollment_failed(response.status()));
+        anyhow::bail!(enrollment_error(response).await);
     }
     let enrollment: SelfEnrollment = response.json().await?;
     Ok((enrollment.device_id, enrollment.token))
@@ -97,7 +114,7 @@ async fn exchange_for_service_token(
         .send()
         .await?;
     if !response.status().is_success() {
-        anyhow::bail!(i18n::enrollment_failed(response.status()));
+        anyhow::bail!(enrollment_error(response).await);
     }
     let enrollment: Enrollment = response.json().await?;
     Ok(enrollment.token)
@@ -175,7 +192,17 @@ pub async fn credential_helper(operation: &str) -> Result<()> {
 
 #[cfg(test)]
 mod enroll_tests {
-    use super::machine_name;
+    use super::{machine_name, problem_detail};
+
+    #[test]
+    fn enrollment_errors_expose_only_the_problem_detail() {
+        assert_eq!(
+            problem_detail(r#"{"title":"Unauthorized","detail":"invalid audience"}"#),
+            Some("invalid audience".to_string())
+        );
+        assert_eq!(problem_detail("<html>upstream failed</html>"), None);
+        assert_eq!(problem_detail(r#"{"detail":["not a safe string"]}"#), None);
+    }
 
     /// The name is cosmetic and must never be the reason an enrollment fails: the backend
     /// falls back to a generic one, and the user renames the device in Settings.
