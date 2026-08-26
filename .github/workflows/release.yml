@@ -61,8 +61,8 @@ jobs:
           if [ -z "$minor" ]; then
             git fetch --tags --force --quiet || true
             last=-1
-            for tag in $(git tag -l "v${prefix}.*"); do
-              candidate="${tag##v${prefix}.}"
+            for tag in $(git tag -l "${prefix}.*"); do
+              candidate="${tag##${prefix}.}"
               case "$candidate" in ''|*[!0-9]*) continue ;; esac
               [ "$candidate" -gt "$last" ] && last="$candidate"
             done
@@ -74,7 +74,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          v="v${{ steps.version.outputs.value }}"
+          v="${{ steps.version.outputs.value }}"
           git rev-parse "$v" >/dev/null 2>&1 || { git tag "$v" && git push origin "$v"; }
           gh release view "$v" >/dev/null 2>&1 || gh release create "$v" --title "$v" --generate-notes
           gh release upload "$v" --clobber bins/pacs-*
