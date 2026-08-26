@@ -3,9 +3,8 @@ on:
   workflow_dispatch:
     inputs:
       micro:
-        description: "MICRO version within this month"
-        required: true
-        default: "0"
+        description: "MICRO version within this month — leave empty to continue from the tags"
+        required: false
 
 permissions:
   contents: write
@@ -55,8 +54,24 @@ jobs:
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
+        # Continue from the newest existing tag for this month, like the other repos here. It
+        # used to take MICRO from a required input defaulting to "0", so a release triggered
+        # without picking a number reused one -- or, with the input left empty, built a tag
+        # ending in a bare dot.
         run: |
-          v="v$(date -u +%Y).$(date -u +%-m).${{ github.event.inputs.micro }}"
+          prefix="$(date -u +%Y).$(date -u +%-m)"
+          micro="${{ github.event.inputs.micro }}"
+          if [ -z "$micro" ]; then
+            git fetch --tags --force --quiet || true
+            last=-1
+            for t in $(git tag -l "v${prefix}.*"); do
+              n="${t##v${prefix}.}"
+              case "$n" in ''|*[!0-9]*) continue ;; esac
+              [ "$n" -gt "$last" ] && last="$n"
+            done
+            micro=$(( last + 1 ))
+          fi
+          v="v${prefix}.${micro}"
           git rev-parse "$v" >/dev/null 2>&1 || { git tag "$v" && git push origin "$v"; }
           gh release view "$v" >/dev/null 2>&1 || gh release create "$v" --title "$v" --generate-notes
           gh release upload "$v" --clobber bins/pacs-*
