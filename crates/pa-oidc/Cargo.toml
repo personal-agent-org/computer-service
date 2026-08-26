@@ -13,8 +13,8 @@ path = "src/lib.rs"
 # This crate owns the workspace's TLS trust decision (see src/tls.rs) and hands a
 # preconfigured rustls config to reqwest, so the roots come from the SYSTEM store rather than
 # only the compiled-in Mozilla set. Every other client crate goes through it.
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-webpki-roots-no-provider", "json"] }
-rustls = { version = "0.23", features = ["ring"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-webpki-roots-no-provider", "http2", "json"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 # Reads the OS trust store, and honours SSL_CERT_FILE / SSL_CERT_DIR with it.
 rustls-native-certs = "0.8"
 # Fallback only, for machines with no system store at all (scratch containers).

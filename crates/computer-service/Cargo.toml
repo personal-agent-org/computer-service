@@ -36,8 +36,8 @@ portable-pty = "0.8"
 base64 = "0.22"
 # TLS trust comes from pa-oidc::tls (system store + SSL_CERT_FILE, webpki only as a fallback),
 # handed to reqwest as a preconfigured config -- so an internal CA works here too.
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-webpki-roots-no-provider", "json"] }
-rustls = { version = "0.23", features = ["ring"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-webpki-roots-no-provider", "http2", "json"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 
 [target.'cfg(unix)'.dependencies]
 # Process-group kill for timed-out run_command trees (no orphan daemons on ports).
