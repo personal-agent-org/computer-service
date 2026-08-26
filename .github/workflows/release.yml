@@ -14,45 +14,15 @@ jobs:
   ci:
     uses: ./.github/workflows/ci.yml
 
-  binaries:
+  version:
     needs: ci
-    strategy:
-      matrix:
-        include:
-          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, asset: pacs-linux-x64 }
-          - { os: macos-latest, target: aarch64-apple-darwin, asset: pacs-macos-arm64 }
-          - { os: windows-latest, target: x86_64-pc-windows-msvc, asset: pacs-windows-x64.exe }
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-      - run: cargo build --release --target ${{ matrix.target }} -p computer-service
-      - name: Stage binary
-        shell: bash
-        run: |
-          bin="target/${{ matrix.target }}/release/pacs"
-          [ -f "$bin.exe" ] && bin="$bin.exe"
-          cp "$bin" "${{ matrix.asset }}"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.asset }}
-          path: ${{ matrix.asset }}
-
-  release:
-    needs: binaries
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.version.outputs.value }}
+      value: ${{ steps.version.outputs.value }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/download-artifact@v4
-        with:
-          path: bins
-          merge-multiple: true
       - name: Compute CalVer
         id: version
         run: |
@@ -70,11 +40,55 @@ jobs:
           fi
           case "$minor" in ''|*[!0-9]*) echo "MINOR must be numeric" >&2; exit 1 ;; esac
           echo "value=${prefix}.${minor}" >> "$GITHUB_OUTPUT"
+
+  binaries:
+    needs: version
+    strategy:
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, asset: pacs-linux-x64 }
+          - { os: macos-latest, target: aarch64-apple-darwin, asset: pacs-macos-arm64 }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, asset: pacs-windows-x64.exe }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Build versioned binary
+        env:
+          PACS_BUILD_VERSION: ${{ needs.version.outputs.value }}
+        run: cargo build --release --target ${{ matrix.target }} -p computer-service
+      - name: Stage binary
+        shell: bash
+        run: |
+          bin="target/${{ matrix.target }}/release/pacs"
+          [ -f "$bin.exe" ] && bin="$bin.exe"
+          cp "$bin" "${{ matrix.asset }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+
+  release:
+    needs: [version, binaries]
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ needs.version.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          path: bins
+          merge-multiple: true
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.value }}
         run: |
-          v="${{ steps.version.outputs.value }}"
+          v="$VERSION"
           git rev-parse "$v" >/dev/null 2>&1 || { git tag "$v" && git push origin "$v"; }
           gh release view "$v" >/dev/null 2>&1 || gh release create "$v" --title "$v" --generate-notes
           gh release upload "$v" --clobber bins/pacs-*
@@ -93,6 +107,7 @@ jobs:
         with:
           context: .
           push: true
+          build-args: PACS_BUILD_VERSION=${{ needs.release.outputs.version }}
           tags: |
             ghcr.io/personal-agent-org/computer-service:${{ needs.release.outputs.version }}
             ghcr.io/personal-agent-org/computer-service:latest

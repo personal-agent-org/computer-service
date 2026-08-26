@@ -4,10 +4,17 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
+fn build_version() -> &'static str {
+    match option_env!("PACS_BUILD_VERSION") {
+        Some(version) if !version.is_empty() => version,
+        _ => env!("CARGO_PKG_VERSION"),
+    }
+}
+
 #[derive(Parser)]
 #[command(
     name = "pacs",
-    version,
+    version = build_version(),
     about = "Expose this computer's capabilities to Personal Agent"
 )]
 struct Cli {
