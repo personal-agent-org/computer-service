@@ -2,8 +2,8 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      micro:
-        description: "MICRO version within this month — leave empty to continue from the tags"
+      minor:
+        description: "MINOR version within this month — leave empty to continue from the tags"
         required: false
 
 permissions:
@@ -43,6 +43,8 @@ jobs:
   release:
     needs: binaries
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,33 +53,34 @@ jobs:
         with:
           path: bins
           merge-multiple: true
+      - name: Compute CalVer
+        id: version
+        run: |
+          prefix="$(date -u +%Y).$(date -u +%-m)"
+          minor="${{ github.event.inputs.minor }}"
+          if [ -z "$minor" ]; then
+            git fetch --tags --force --quiet || true
+            last=-1
+            for tag in $(git tag -l "v${prefix}.*"); do
+              candidate="${tag##v${prefix}.}"
+              case "$candidate" in ''|*[!0-9]*) continue ;; esac
+              [ "$candidate" -gt "$last" ] && last="$candidate"
+            done
+            minor=$((last + 1))
+          fi
+          case "$minor" in ''|*[!0-9]*) echo "MINOR must be numeric" >&2; exit 1 ;; esac
+          echo "value=${prefix}.${minor}" >> "$GITHUB_OUTPUT"
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
-        # Continue from the newest existing tag for this month, like the other repos here. It
-        # used to take MICRO from a required input defaulting to "0", so a release triggered
-        # without picking a number reused one -- or, with the input left empty, built a tag
-        # ending in a bare dot.
         run: |
-          prefix="$(date -u +%Y).$(date -u +%-m)"
-          micro="${{ github.event.inputs.micro }}"
-          if [ -z "$micro" ]; then
-            git fetch --tags --force --quiet || true
-            last=-1
-            for t in $(git tag -l "v${prefix}.*"); do
-              n="${t##v${prefix}.}"
-              case "$n" in ''|*[!0-9]*) continue ;; esac
-              [ "$n" -gt "$last" ] && last="$n"
-            done
-            micro=$(( last + 1 ))
-          fi
-          v="v${prefix}.${micro}"
+          v="v${{ steps.version.outputs.value }}"
           git rev-parse "$v" >/dev/null 2>&1 || { git tag "$v" && git push origin "$v"; }
           gh release view "$v" >/dev/null 2>&1 || gh release create "$v" --title "$v" --generate-notes
           gh release upload "$v" --clobber bins/pacs-*
 
   image:
-    needs: ci
+    needs: release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -90,4 +93,6 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/personal-agent-org/personal-agent-sandbox:latest
+          tags: |
+            ghcr.io/personal-agent-org/computer-service:${{ needs.release.outputs.version }}
+            ghcr.io/personal-agent-org/computer-service:latest
