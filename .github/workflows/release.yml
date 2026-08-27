@@ -9,6 +9,7 @@ on:
 permissions:
   contents: write
   packages: write
+  id-token: write
 
 jobs:
   ci:
@@ -83,6 +84,11 @@ jobs:
         with:
           path: bins
           merge-multiple: true
+      - uses: sigstore/cosign-installer@v4.1.2
+      - name: Sign the release manifest
+        run: |
+          (cd bins && sha256sum pacs-* > SHA256SUMS)
+          cosign sign-blob --yes --bundle bins/SHA256SUMS.sigstore.json bins/SHA256SUMS
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -91,7 +97,8 @@ jobs:
           v="$VERSION"
           git rev-parse "$v" >/dev/null 2>&1 || { git tag "$v" && git push origin "$v"; }
           gh release view "$v" >/dev/null 2>&1 || gh release create "$v" --title "$v" --generate-notes
-          gh release upload "$v" --clobber bins/pacs-*
+          gh release upload "$v" --clobber \
+            bins/pacs-* bins/SHA256SUMS bins/SHA256SUMS.sigstore.json
 
   image:
     needs: release
@@ -103,7 +110,8 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      - id: build
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
@@ -111,3 +119,8 @@ jobs:
           tags: |
             ghcr.io/personal-agent-org/computer-service:${{ needs.release.outputs.version }}
             ghcr.io/personal-agent-org/computer-service:latest
+      - uses: sigstore/cosign-installer@v4.1.2
+      - name: Sign the computer service image
+        run: >-
+          cosign sign --yes --recursive
+          ghcr.io/personal-agent-org/computer-service@${{ steps.build.outputs.digest }}
